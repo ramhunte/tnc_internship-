@@ -1,0 +1,72 @@
+---
+title: "testing"
+author: "Ray Hunter"
+date: "2023-06-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(camtrapR)
+library(dplyr)
+library(exiftoolr)
+library(rgdal)
+library(plotKML)
+```
+
+```{r}
+setwd("/Users/rayhunter/Desktop/TNC/tnc_internship-")
+```
+
+
+
+
+
+
+
+```{r}
+wd_images_raw <- "Deer_Mouse"
+# wd_images_renamed <- system.file("renamed_images")
+
+
+
+
+
+
+
+renamed <- imageRename(inDir = wd_images_raw,
+                       # outDir = wd_images_renamed,
+                       hasCameraFolders = FALSE, 
+                       copyImages = FALSE)
+```
+
+
+
+
+
+
+
+
+```{r}
+
+data("camtraps")
+camtraps
+
+
+
+data("recordTableSample")
+recordTableSample
+
+
+
+
+
+data("timeShiftTable")
+timeShiftTable
+
+
+
+
+```
+
