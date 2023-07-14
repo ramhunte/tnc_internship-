@@ -1,0 +1,149 @@
+---
+title: "lara_script"
+author: "Ray Hunter"
+date: "2023-07-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(lubridate)
+library(dplyr)
+library(readr)
+library(camtrapR)
+```
+
+# Converting raw Animl Data into camtrapR format
+# 6/28/23
+# by Juliann Schamel and Lara Brenner
+
+
+```{r}
+
+# Import and Format DateTime -------------------------------------------------------
+
+# Clear any environment variables in memory
+rm(list = ls())
+
+# import detection records data
+animl <- read_csv("rawaniml.csv", col_names = T)
+
+# look at structure of the dataframe
+str(animl)
+
+# extract date into new column
+animl$Date <- as.Date(animl$dateTimeOriginal)
+
+# extract time into new column
+animl$Time = substr(animl$dateTimeOriginal, 12, 19)
+
+# make new DateTimeOriginal column from these extracted date and time
+animl$DateTimeOriginal <- paste(animl$Date, animl$Time)
+
+# check the structure
+str(animl)
+
+# format DateTimeOriginal into datetime for camptrapR
+animl$DateTimeOriginal <- as.POSIXct(animl$DateTimeOriginal, "GMT", format = "%Y-%m-%d %H:%M:%S")
+
+#change time zone from GMT if needed
+animl$DateTimeOriginal <- format(animl$DateTimeOriginal,tz="America/Los_Angeles")
+
+# check the structure
+str(animl)
+
+# Make New Column For Species ---------------------------------------------
+
+# subset to new dataframes for each species
+# create new column with Species name
+# stitch them all back together into one dataframe!
+
+# subset to just lizard detections
+lizard <- animl[ which (animl$lizard==1), ]
+
+# subset to just fox detections
+fox <- animl[ which (animl$fox==1), ]
+
+# subset to just rodent detections
+rodent <- animl[ which (animl$rodent==1), ]
+
+# subset to just skunk detections
+skunk <- animl[ which (animl$skunk==1), ]
+
+# add a column with species information to each dataframe
+lizard$Species <- "lizard"
+fox$Species <- "fox"
+rodent$Species <- "rodent"
+skunk$Species <- "skunk"
+
+# recombine them back into the full dataframe, which now includes a species column
+fulldataspecies <- rbind(lizard, fox, rodent, skunk)
+# it is smaller than the original imported file because we have left out all the "empty" rows
+
+
+# Separate Detections by Selected Time Period --------------------------------------------------
+
+ind_records <- camtrapR:::assessTemporalIndependence(intable = fulldataspecies, 
+                                                       deltaTimeComparedTo = "lastIndependentRecord",
+                                                       columnOfInterest = "Species",
+                                                       cameraCol = "deploymentName",
+                                                       camerasIndependent = TRUE,
+                                                       stationCol = "deploymentName",
+                                                       minDeltaTime = 3,
+)
+# subset to include only the columns you want to keep 
+# (this is just an example, choose whatever columns you like!)
+# in the order you want them to be!
+ind_records_final <- ind_records[,c("Date", "Time", "DateTimeOriginal", "deploymentName", "Species", "cameraId")] 
+
+# save as new file (with your own file path of course)
+write.csv(ind_records_final, "Documents/independentanimls.csv", row.names = F)
+
+#import stations data
+#this should be a dataset that links each detection to a station with associated lat/long data
+stations <- read_csv("C:/Users/lara.brenner/Box/000. Lara's Files/Biosecurity/CameraData/stations.csv")
+
+#look at the structure of the dataframe
+str(stations)
+
+#make a map of species detections
+#change "speciestoShow" to the species of interest
+#you can add a polgyon of your area of interest, or export this to a Shapefile to explore in GIS
+Animlmap <- detectionMaps(CTtable = stations,
+                           recordTable = ind_records,
+                           Xcol = "long",
+                           Ycol = "lat",
+                           stationCol = "deploymentName",
+                           speciesCol = "Species",
+                           speciesToShow = "rodent",
+                           printLabels = FALSE,
+                           richnessPlot = FALSE,
+                           speciesPlots = TRUE,
+                           addLegend = TRUE
+)
+
+#look at daily activity rates
+activityDensity(recordTable = ind_records, species = "rodent")
+activityRadial(recordTable = ind_records,
+               species = "rodent",
+               allSpecies = FALSE,
+               speciesCol = "Species",
+               recordDateTimeCol = "DateTimeOriginal",
+               plotR = TRUE,
+               writePNG = FALSE,
+               lwd = 3,
+               rp.type = "p", # plot type = polygon
+               poly.col = gray(0.5, alpha = 0.5) # optional. remove for no fill
+)
+
+#look at monthly activity rates
+ind_records$month <- month(ind_records$DateTimeOriginal, label=TRUE)
+barplot(summary(ind_records$month))
+```
+
+
+
+
+
+

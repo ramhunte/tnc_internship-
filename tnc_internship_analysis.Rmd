@@ -1,0 +1,250 @@
+---
+title: "testing"
+author: "Ray Hunter"
+date: "2023-06-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+# telling r where files are located 
+library(here)
+# for manipulating date and time
+library(lubridate)
+# might not need this, for reading in files from box to R
+library(boxr)
+library(camtrapR)
+# making data tidy and neat 
+library(dplyr)
+# allows r to find metadata of photos 
+library(exiftoolr)
+
+#spatial analysis 
+library(sp)
+library(rgdal)
+library(plotKML)
+```
+
+
+```{r}
+#clearing list every time it runs 
+rm(list = ls())
+```
+
+
+### Setting up Exiftool: 
+* Code is hidden b/c I have already installed it and dont want to do so again every time I run this file 
+* delete the single "#" symbols on each line to run that code 
+
+
+```{r}
+########### installing ExifTool on computer and then telling R where to find it ########
+ 
+#  install_exiftool("/Users/rayhunter/Downloads")
+
+########## pointing to where ExifTool is  located #############
+
+# exiftoolPath("/usr/local/bin/ExifTool")
+
+############ check to see if R can find Exiftool ################
+
+# Sys.which("ExifTool")
+
+```
+
+
+
+
+### trying to set up box API so r can read images from box (not working too well) 
+```{r}
+
+# # Authenticate with Box using your API credentials
+# box_auth(client_id = "qo4enkm1e1jnscbmy82a2w6dmojjbj7g", client_secret = "adqa1lqxSM4RzkV0rLIXNLoN0oJzZyjA")
+# 
+# 
+# 
+# # Specify the name of the folder you want to find the path for
+# trial_data <- "trial_data"
+# 
+# # Search for the folder using its name
+# folder <- box_ls(recursive = FALSE, query = trial_data, type = "folder")
+# 
+# # Print the folder path
+# cat("Folder Path:", folder$path, "\n")
+```
+
+
+
+
+
+
+
+### read in the image data 
+
+```{r}
+################## raw cam trap csv file of photos ####################### 
+t1_dat <- read.csv(here("trial_1.csv"))
+
+##### modified t1 data to fit format of camtrapR ###########
+
+t1_mod <- t1_dat %>% 
+  #renaming date time 
+  rename(DateTimeOriginal = DateTime) %>% 
+  # renaming file name 
+  rename(FileName = File) %>% 
+  #creating a column called "Date" from DateTimeOriginal using lubridate package
+  mutate(Date = as_date(ymd_hms(DateTimeOriginal))) %>% 
+    #creating a column called "Time" from DateTimeOriginal using lubrdiate package 
+  mutate(Time = format(ymd_hms(DateTimeOriginal), format = "%H:%M:%S")) %>% 
+  #selecting a specific columns 
+  select(c("Station", "Species", "DateTimeOriginal", "Date", "Time", "FileName"))
+```
+
+
+
+### read in the station data 
+```{r}
+################ station data ################
+
+stat_dat_raw <- read.csv(here("station_data.csv")) 
+
+stat_dat_mod <- stat_dat_raw %>% 
+  rename(Station = Camera.Number)
+
+
+# # Setting existing coordinate as lat-long system
+# coords <- stat_dat_mod[, c("Longitude", "Latitude")]
+# coordinates(coords) <- c("Longitude", "Latitude")
+# 
+# 
+# 
+# proj4string(coords) <- CRS("+proj=longlat +datum=WGS84")
+# 
+# # Project the coordinates to UTM
+# coords_utm <- spTransform(coords, CRS("+proj=utm +zone=auto"))
+# 
+# # Extract the UTM x and UTM y coordinates
+# stat_dat_mod$utm_x <- coords_utm@coords[, 1]
+stat_dat_mod$utm_y <- coords_utm@coords[, 2]
+```
+
+
+
+
+
+
+### Renaming Images 
+
+```{r}
+# file path of photos folder 
+wd_images_raw <- "//Volumes/TNC_HD/trial_1/trial_1_cleaned_images"
+
+# creating a new file path for renamed images in Working directory 
+wd_images_renamed <- "/Volumes/TNC_HD/trial_1/trial_1_cleaned_images_renamed"
+
+
+
+
+# fixing a time issue with raw images 
+time_table <- data.frame(c(Station = "Station 6", camera = NA, timeshift = 0:0:0 0:0:0, sign = ))
+
+
+
+
+
+
+
+
+
+# renaming photos from the indirectory and storing int he outdirectory 
+renamed <- imageRename(inDir = wd_images_raw,
+                       outDir = wd_images_renamed,
+                       hasCameraFolders = FALSE, 
+                       copyImages = TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+## looking to see if cameras were down in the operation 
+
+```{r}
+camop_problem <- cameraOperation(CTtable = dat,
+                                 stationCol = "Station ", #column containing station Id's
+                                 setupCol = "Date_Set", #column using date of deployment 
+                                 retrievalCol = "Date_Retrieved",
+                                 writecsv = FALSE,
+                                 hasProblems = TRUE, # if we have a colomn of camera malfunctions 
+                                 dtaeFormat = "%d/%m/%Y" #date format in the file 
+                                
+                                 )
+
+camopPlot(camOp = camop_problem)
+
+
+```
+
+
+
+
+### extracting data 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+
+data("camtraps")
+camtraps
+
+
+
+data("recordTableSample")
+recordTableSample
+
+
+
+
+
+data("timeShiftTable")
+timeShiftTable
+
+
+
+
+```
+
