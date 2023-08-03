@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(lubridate)
 library(dplyr)
+library(here)
 library(readr)
 library(camtrapR)
 ```
@@ -27,7 +28,7 @@ library(camtrapR)
 rm(list = ls())
 
 # import detection records data
-animl <- read_csv("rawaniml.csv", col_names = T)
+animl <- read.csv("/Users/rayhunter/Desktop/TNC/tnc_internship-/lara_code /rawaniml.csv")
 
 # look at structure of the dataframe
 str(animl)
@@ -98,7 +99,7 @@ ind_records <- camtrapR:::assessTemporalIndependence(intable = fulldataspecies,
 ind_records_final <- ind_records[,c("Date", "Time", "DateTimeOriginal", "deploymentName", "Species", "cameraId")] 
 
 # save as new file (with your own file path of course)
-write.csv(ind_records_final, "Documents/independentanimls.csv", row.names = F)
+# write.csv(ind_records_final, "Documents/independentanimls.csv", row.names = F)
 
 #import stations data
 #this should be a dataset that links each detection to a station with associated lat/long data
