@@ -28,6 +28,12 @@ library(unmarked)
 rm(list = ls())
 ```
 
+Github:
+
+https://github.com/ramhunte/tnc_internship-.git
+
+
+
 ## Resources Used:
 
 ### Camtrap R: 
@@ -546,7 +552,7 @@ AIC_weights = Weights(aic_values))
 #after inspecting, you can see model 6 is the best (lowest AIC) 
 
 #writing a csv file for export
-write.csv(aic_tab, file = "aic_table.csv", row.names = FALSE)
+write.csv(aic_tab, file = "data/aic_table.csv", row.names = FALSE)
 ```
 
 
@@ -593,7 +599,7 @@ eff_plot <- ggplot(det_res_m6, aes(x = Species, y = Estimate,  color = Treatment
 
 eff_plot
 
-ggsave("eff_plot.jpeg", plot = eff_plot, width = 6, height = 4, dpi = 300)
+ggsave("figures/eff_plot.jpeg", plot = eff_plot, width = 6, height = 4, dpi = 300)
 
 ```
 
@@ -665,7 +671,7 @@ det_plot <- ggplot(preds_fig, aes(x = Treatment, y = det_prob, group = Species, 
 det_plot
 
 
-ggsave("det_plot.jpeg", plot = det_plot, width = 6, height = 4, dpi = 300)
+ggsave("figures/det_plot.jpeg", plot = det_plot, width = 6, height = 4, dpi = 300)
 
 
 ```
