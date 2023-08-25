@@ -1,0 +1,560 @@
+---
+title: "Notes"
+author: "Ray Hunter"
+date: "2023-08-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+########## notes from analysis document 
+
+
+
+
+### Setting up Exiftool: 
+* Code is hidden b/c I have already installed it and dont want to do so again every time I run this file 
+* delete the single "#" symbols on each line to run that code 
+* this is more used for reading the metadata from photos in folders to label cam trap photos. We processeda all photos in Timelapse and created a csv file so this isnt really necessary but its helpful just in case
+
+
+```{r}
+########### installing ExifTool on computer and then telling R where to find it ########
+ 
+#  install_exiftool("/Users/rayhunter/Downloads")
+
+########## pointing to where ExifTool is  located #############
+
+# exiftoolPath("/usr/local/bin/ExifTool")
+
+############ check to see if R can find Exiftool ################
+
+# Sys.which("ExifTool")
+
+```
+
+### Read in the station data 
+
+```{r}
+################ station data ################
+
+stat_dat_raw <- read.csv(here("data", "station_data.csv"))
+
+#modified data and fixing times using lubridate so that dates are read as dates and not characters 
+stat_dat_mod <- stat_dat_raw %>% 
+  #getting rid of extra spaces 
+  mutate(Treatment = str_trim(Treatment)) %>% 
+  #reading as a date 
+  mutate(Date_Installed = mdy(Date_Installed)) %>% 
+  mutate(Date_Retrieved = mdy(Date_Retrieved)) %>% 
+  mutate(Problem1_from = mdy(Problem1_from)) %>% 
+    mutate(Problem1_to = mdy(Problem1_to))
+
+#removing rows (if needed)
+stat_dat_mod <- stat_dat_mod[-c(49:72), ]  
+    
+  
+  
+  
+
+```
+
+
+
+
+### Camera Operability 
+```{r}
+#this step is necessary to put in a camera operation table telling camtrapR when the cameras were running and if there was any issues. Ex; if camera #12 was down for a couple days, you would insert it in stat_dat_mod and then cameraOperations would create a table saying it was down.I entered this data for downed cameras in the column Prblem1_from and Problem1_to. Even if you dont have any issues with your cameras, we still have to create a table for this cause its necessary in following steps. if there is not problems in the problems columns, then mark hasProblems = FALSE
+camop_problem <- cameraOperation( CTtable = stat_dat_mod,
+                      stationCol = "Station",
+                      setupCol = "Date_Installed",
+                      retrievalCol = "Date_Retrieved",
+                      hasProblems = TRUE,
+                      dateFormat = "ymd",
+                      #starting detections at 8am 
+                      occasionStartTime = 8
+                      
+)
+
+
+
+
+
+```
+
+
+
+
+### Wood Rat Detection History 
+```{r}
+#here we create a detection history for each species of interest. Says if a species was observed or not during each day. This df is not in tidy format because this is how it is needed for the "unmarked" package down the line for later analysis in the "unmarkedFrame" funciton
+woodrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
+                       camOp = camop_problem,
+                       species = "Woodrat",
+                       stationCol = "Station",
+                       speciesCol = "Species",
+                       recordDateTimeCol = "DateTimeOriginal",
+                       recordDateTimeFormat = "%Y-%m-%d %H:%M:%S",
+                       occasionLength = 1,
+                       occasionStartTime = 8, 
+                       day1 = "station",
+                       includeEffort = FALSE,
+                       scaleEffort = FALSE,
+                       timeZone = "America/Los_Angeles"
+                       # writecsv = TRUE,
+                       # outDir = "/Users/rayhunter/Desktop/TNC/tnc_internship-/data"
+                       )) %>% 
+  #adding the station names
+  rownames_to_column("Station" ) 
+ 
+
+
+#woodrat hist df in tidy format just to have it if for summary data 
+wr_hist_mod <- woodrat_hist  %>%
+  #tidy format 
+ pivot_longer(cols = c(detection_history.o1:detection_history.o12),
+               names_to = "day",
+               values_to = "detection") %>%
+  #combining both DF's in tiday format
+  merge( stat_dat_mod[, c("Station", "Treatment")], by = "Station", all.x = TRUE) %>%
+   #creating a species name
+  mutate(Species = "Woodrat")
+  
+
+
+#creating a summary df
+wr_hist_sum <- wr_hist_mod %>% 
+  #grouping byt station and treatment for summary 
+  group_by(Station, Treatment, Species) %>%
+  #taking the means 
+  summarise(detection_prob = mean(detection, na.rm = TRUE))
+```
+
+
+
+
+### Black Rat Detection History 
+```{r}
+#here we create a detection history for each species of interest. Says if a species was observed or not during each day. This df is not in tidy format because this is how it is needed for the "unmarked" package down the line for later analysis in the "unmarkedFrame" funciton
+blackrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
+                       camOp = camop_problem,
+                       species = "Black rat",
+                       stationCol = "Station",
+                       speciesCol = "Species",
+                       recordDateTimeCol = "DateTimeOriginal",
+                       recordDateTimeFormat = "%Y-%m-%d %H:%M:%S",
+                       occasionLength = 1,
+                       occasionStartTime = 8, 
+                       day1 = "station",
+                       includeEffort = FALSE,
+                       scaleEffort = FALSE,
+                       timeZone = "America/Los_Angeles"
+                       # writecsv = TRUE,
+                       # outDir = "/Users/rayhunter/Desktop/TNC/tnc_internship-/data"
+                       )) %>% 
+  #adding the station names
+  rownames_to_column("Station" ) 
+ 
+
+
+#woodrat hist df in tidy format just to have it if for summary data 
+br_hist_mod <- blackrat_hist  %>%
+  #tidy format 
+ pivot_longer(cols = c(detection_history.o1:detection_history.o12),
+               names_to = "day",
+               values_to = "detection") %>%
+  #combining both DF's in tiday format
+  merge( stat_dat_mod[, c("Station", "Treatment")], by = "Station", all.x = TRUE) %>%
+   #creating a species name
+  mutate(Species = "Black rat")
+  
+
+
+#creating a summary df
+br_hist_sum <- br_hist_mod %>% 
+  #grouping byt station and treatment for summary 
+  group_by(Station, Treatment, Species) %>%
+  #taking the means 
+  summarise(detection_prob = mean(detection, na.rm = TRUE))
+
+```
+
+
+
+
+### Mouse Detection History 
+
+```{r}
+#here we create a detection history for each species of interest. Says if a species was observed or not during each day. This df is not in tidy format because this is how it is needed for the "unmarked" package down the line for later analysis in the "unmarkedFrame" funciton
+mouse_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
+                       camOp = camop_problem,
+                       species = "Mouse",
+                       stationCol = "Station",
+                       speciesCol = "Species",
+                       recordDateTimeCol = "DateTimeOriginal",
+                       recordDateTimeFormat = "%Y-%m-%d %H:%M:%S",
+                       occasionLength = 1,
+                       occasionStartTime = 8, 
+                       day1 = "station",
+                       includeEffort = FALSE,
+                       scaleEffort = FALSE,
+                       timeZone = "America/Los_Angeles"
+                       # writecsv = TRUE,
+                       # outDir = "/Users/rayhunter/Desktop/TNC/tnc_internship-/data"
+                       )) %>% 
+  #adding the station names
+  rownames_to_column("Station" ) 
+ 
+
+
+#woodrat hist df in tidy format just to have it if for summary data 
+mou_hist_mod <- mouse_hist  %>%
+  #tidy format 
+ pivot_longer(cols = c(detection_history.o1:detection_history.o12),
+               names_to = "day",
+               values_to = "detection") %>%
+  #combining both DF's in tiday format
+  merge( stat_dat_mod[, c("Station", "Treatment")], by = "Station", all.x = TRUE) %>%
+   #creating a species name
+  mutate(Species = "Mouse")
+  
+
+
+#creating a summary df
+mou_hist_sum <-mou_hist_mod %>% 
+  #grouping byt station and treatment for summary 
+  group_by(Station, Treatment, Species) %>%
+  #taking the means 
+  summarise(detection_prob = mean(detection, na.rm = TRUE))
+
+```
+
+
+
+
+
+
+
+### Reports
+```{r}
+#creating summary reports 
+report <- surveyReport(recordTable = ind_recs_mod,
+                       CTtable = stat_dat_mod,
+                       CTDateFormat = "ymd",
+                       speciesCol = "Species",
+                       setupCol = "Date_Installed",
+                       retrievalCol = "Date_Retrieved",
+                       recordDateTimeCol = "DateTimeOriginal")
+
+
+report1 <- report$species_by_station 
+report2 <- report$events_by_species
+report3 <- report$events_by_station
+```
+
+
+
+
+
+
+
+
+
+
+### combined 
+```{r}
+
+
+
+############ combining and summarizing each data frame into one  
+
+
+rodent_sum <- rbind(wr_hist_sum, br_hist_sum, mou_hist_sum)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##################### Single Species Occupancy modeling ####################
+
+#preparing model data 
+```{r}
+#creating list of covariates 
+covs <- stat_dat_mod[ ,6:12]
+#list of sites 
+sites <-  as.data.frame(stat_dat_mod[,1])
+#wr observations
+dets_wr <- woodrat_hist[,2:13]
+#br observations
+dets_br <- blackrat_hist[,2:13]
+#mouse observations
+dets_mou <- mouse_hist[,2:13]
+
+
+```
+
+
+
+
+```{r}
+ufo_wr <- unmarkedFrameOccu(y = dets_wr, siteCovs = covs)
+summary(ufo_wr)
+
+
+
+ #### standardizing the covariates. Not really sure why we need to do this but that just what is suggested. I think its to center the numeric covariate data around a mean and establish boundaries? Important to note that this can only be done for quantitative data and not qualitative (such as the Treatment)
+ufo_wr@siteCovs$Percent_Canopy_Cover <- scale(ufo_wr@siteCovs$Percent_Canopy_Cover)
+ufo_wr@siteCovs$Percent_Leaf_Litter <- scale(ufo_wr@siteCovs$Percent_Leaf_Litter)
+ufo_wr@siteCovs$Percent_Bare <- scale(ufo_wr@siteCovs$Percent_Bare)
+ufo_wr@siteCovs$Percent_Woody_Debris <- scale(ufo_wr@siteCovs$Percent_Woody_Debris)
+ufo_wr@siteCovs$Distance_to_Water_.m. <- scale(ufo_wr@siteCovs$Distance_to_Water_.m.)
+ufo_wr@siteCovs$Distance_to_Building_.m. <- scale(ufo_wr@siteCovs$Distance_to_Building_.m.)
+```
+
+
+```{r}
+###### Notes for Models
+
+
+#essentially we are creating a models saying that covariates x, y, and z are responsible for patterns in detection (p) and that covariates a,b, and c are responsible for patterns in occupancy (psi). 
+
+
+# the first ~ represents the detection (p)
+# the second ~ represents the occupancy (psi)
+
+
+# We mess around with each combination of different covariates in both the detection (p) and occupancy (psi) portions of the model until we find the one that has the lowest AIC value (see after all models are created)
+
+#one way to find the model with the lowest AIC value is to use the dredge() function in the package MuMIn. Input each of the different covariates you want to use as p and psi and it will run through all possible combinations to find the lowest AIC value. Dont put a bunch of covariates in the dredge() function because it takes a while to run and is demanding on the computer (a lot of data)
+
+
+
+
+
+
+
+
+################ Model 1: no vairation in detection or habitat ################
+
+
+
+fm1 <- occu(formula = ~ 1 
+                     ~ 1,
+           data = ufo_wr)
+
+# backTransform(fm1, type = "state")
+# backTransform(fm1, type = "det")
+
+
+
+
+
+
+
+
+################ Model 2: Datection ~ Treantment, Occupancy ~ dist. to water and building  ################
+
+fm2 <- occu(formula = ~ Treatment 
+                      ~  Distance_to_Water_.m. + Distance_to_Building_.m.,
+            data = ufo_wr)
+
+
+# fm2
+
+
+
+
+
+
+
+################ Model 3: Datection ~ Treantment, Occupancy ~ dist. to water and building  ################
+
+fm3 <- occu(formula = ~ Treatment  + Percent_Canopy_Cover
+                      ~  Distance_to_Water_.m. + Distance_to_Building_.m.,
+            data = ufo_wr)
+
+# fm3
+
+
+
+
+
+################ Model 4:   ################
+
+fm4 <- occu(formula = ~ Treatment  + Percent_Woody_Debris + Distance_to_Building_.m.
+                      ~ Percent_Woody_Debris + Distance_to_Water_.m. + Distance_to_Building_.m.,
+            data = ufo_wr)
+
+fm4
+```
+
+
+
+### fitting 
+```{r}
+fit <- fitList('psi(.)p(.)' = fm1,
+               'psi(Distance_to_Water_.m. + Distance_to_Building_.m.)p(Treatment)' = fm2,
+               'psi(Distance_to_Water_.m. + Distance_to_Building_.m.)p(Treatment + Percent_Canopy_Cover)' = fm3,
+               'psi(Percent_Woody_Debris + Distance_to_Water_.m. + Distance_to_Building_.m.)p(Treatment  +
+                Percent_Woody_Debris + Distance_to_Building_.m.)' = fm4
+               )
+
+modSel(fit)
+```
+
+
+
+#### dredge function 
+```{r}
+### the reason this code is all selected as a note is because I have already ran the dredge() function which is quite demanding on the cpu and gotten my results. Everytime I run this markdown file I dont want it to rerun my dredge() function because I dont need it anymore. To use this code, highlight the whole chunk of code and press: "shift + command + c"
+
+
+
+# full <- occu(formula = ~ Treatment  + Percent_Canopy_Cover + Distance_to_Water_.m. + Distance_to_Building_.m. +
+#                           Percent_Leaf_Litter + Percent_Woody_Debris
+#                        ~ Percent_Canopy_Cover + Distance_to_Water_.m. + Distance_to_Building_.m. +
+#                           Percent_Leaf_Litter + Percent_Woody_Debris,
+#              data = UFO2_wr)
+# 
+# dredge_list <- MuMIn::dredge(full,
+#                     rank = "AIC")
+```
+
+
+
+
+
+
+
+
+
+### map of species detections 
+```{r}
+#make a map of species detections
+#change "speciestoShow" to the species of interest
+#you can add a polgyon of your area of interest, or export this to a Shapefile to explore in GIS
+spec_map <- detectionMaps(CTtable = stat_dat_multi,
+                           recordTable = ind_recs_multi,
+                           Xcol = "Longitude",
+                           Ycol = "Latitude",
+                           stationCol = "Station",
+                           speciesCol = "Species",
+                           speciesToShow = "Wood rat",
+                           printLabels = FALSE,
+                           richnessPlot = FALSE,
+                           speciesPlots = TRUE,
+                           addLegend = TRUE
+)
+```
+### daily activity rates 
+```{r}
+#look at daily activity rates
+activityDensity(recordTable = ind_recs, species = "Rabbit")
+activityRadial(recordTable = ind_recs,
+               species = "Rabbit",
+               allSpecies = FALSE,
+               speciesCol = "Species",
+               recordDateTimeCol = "DateTimeOriginal",
+               plotR = TRUE,
+               writePNG = FALSE,
+               lwd = 3,
+               rp.type = "p", # plot type = polygon
+               poly.col = gray(0.5, alpha = 0.5) # optional. remove for no fill
+)
+```
+
+
+
+########## ANOVA 
+### ANOVA time 
+
+```{r}
+wr_time_recs <- ind_recs %>% 
+  filter(Species == "Woodrat") %>% 
+  group_by(treatment, Species, Station) %>%
+  summarise(n_images = mean(n_images))
+
+
+br_time_recs <- ind_recs %>% 
+  filter(Species == "Black rat") %>% 
+  group_by(treatment, Species, Station) %>%
+  summarise(n_images = mean(n_images))
+
+mou_time_recs <- ind_recs %>% 
+  filter(Species == "Mouse") %>% 
+  group_by(treatment, Species, Station) %>%
+  summarise(n_images = mean(n_images))
+```
+
+
+```{r}
+# wr_con <- time_recs %>% 
+#   filter(Species == "Woodrat", treatment == "Control")
+# wr_pb <- time_recs %>% 
+#   filter(Species == "Woodrat", treatment == "PB")
+# wr_pbf <- time_recs %>% 
+#   filter(Species == "Woodrat", treatment == "PB + Fox")
+
+# hist(wr_con$n_images)
+```
+
+
+
+### visual inspection w/ qq plot 
+```{r}
+ggplot(wr_time_recs, aes(sample=avg_pics))+geom_qq()+
+stat_qq() + stat_qq_line() + theme_bw() + labs(title="Woodrat")
+
+ggplot(br_time_recs, aes(sample=avg_pics))+geom_qq()+
+stat_qq() + stat_qq_line() + theme_bw() + labs(title="Black rat")
+
+ggplot(mou_time_recs, aes(sample=avg_pics))+geom_qq()+
+stat_qq() + stat_qq_line() + theme_bw() + labs(title="Mouse")
+```
+
+
+
+### shapiro wilk test of normality 
+```{r}
+shapiro.test(wr_time_recs$avg_pics)
+shapiro.test(br_time_recs$avg_pics)
+shapiro.test(mou_time_recs$avg_pics)
+```
+
+
+
+
+```{r}
+kruskal_test_wr <- kruskal.test(n_images ~ treatment, data = wr_time_recs)
+print(kruskal_test_wr)
+
+kruskal_test_br <- kruskal.test(n_images ~ treatment, data = br_time_recs)
+print(kruskal_test_br)
+
+kruskal_test_mou <- kruskal.test(n_images ~ treatment, data = mou_time_recs)
+print(kruskal_test_mou)
+
+
+```
+
+
+
+
+
+

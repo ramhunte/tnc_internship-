@@ -1,0 +1,4 @@
+"Model","Model_definition","Parameters","Log_liklihood","df","AIC","Delta_AIC","AIC_weights"
+"Model 6","p ~ Treatment, Treatment, Treatment; psi ~ Woody_Debris,  Distance to Building + Canopy_Cover, WoodyDebris",19,-862.672398548902,19,1763.3447970978,0,0.947064182470986
+"Model 7","p ~ Treatment, Treatment, Treatment; psi~ Distance_to_Water, Distance_to_Building, 1",17,-867.769436574287,17,1769.53887314857,6.19407605077095,0.042791044499355
+"Model 5","p ~ Treatment, Treatment, Treatment; psi ~ Distance_to_Building, Distance_to_Building, Distance_to_Water",18,-868.208806813915,18,1772.41761362783,9.07281653002701,0.010144773029659

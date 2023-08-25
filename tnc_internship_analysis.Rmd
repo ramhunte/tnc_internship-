@@ -7,25 +7,18 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+#organizing/wrangling data
 library(tidyverse)
 library(janitor)
+library(dplyr)
+#adjusting dates
+library(lubridate)
 # telling r where files are located 
 library(here)
-# for manipulating date and time
-library(lubridate)
-# might not need this, for reading in files from box to R
-library(boxr)
-library(camtrapR)
-# making data tidy and neat 
-library(dplyr)
-# allows r to find metadata of photos 
-library(exiftoolr)
-#spatial analysis 
-library(sp)
-library(rgdal)
-library(plotKML)
 #statistical analysis 
+library(camtrapR)
 library(stats)
+library(MuMIn)
 library(unmarked)
 ```
 
@@ -35,245 +28,139 @@ library(unmarked)
 rm(list = ls())
 ```
 
+## Resources Used:
+
+### Camtrap R: 
+* Vignettes (included in the folder here)
+
+* youtube 5 part series Scott Burnett https://www.youtube.com/@scottburnett8242
+
+#### the first viedo or two that he does is a bit confusing as a lot of the stuff he is doing is designed to read camera image metadata and create a csv file from it, which we did not do. Also it revolves around ####3
+
+* google groups: https://groups.google.com/g/camtrapr
 
 
-
-
-### Setting up Exiftool: 
-* Code is hidden b/c I have already installed it and dont want to do so again every time I run this file 
-* delete the single "#" symbols on each line to run that code 
-
-
-```{r}
-########### installing ExifTool on computer and then telling R where to find it ########
- 
-#  install_exiftool("/Users/rayhunter/Downloads")
-
-########## pointing to where ExifTool is  located #############
-
-# exiftoolPath("/usr/local/bin/ExifTool")
-
-############ check to see if R can find Exiftool ################
-
-# Sys.which("ExifTool")
-
-```
+### Occupancy Modeling: 
+* smart occupancy dude: https://www.youtube.com/watch?v=tj_OCO77_sc
 
 
 
 
 
-### Read in the image csv data 
+
+
+### Read in the image csv data and wrangle 
 
 ```{r}
-################## Read in trial 1 csv file  ####################### 
+### read in raw data from each trial 
 t1_dat <- read.csv(here("data", "trial_1.csv"))
+t2_dat <- read.csv(here("data", "trial_2.csv"))
+t3_dat <- read.csv(here("data", "trial_3.csv"))
+t4_dat <- read.csv(here("data", "trial_4.csv"))
+t5_dat <- read.csv(here("data", "trial_5.csv"))
+t6_dat <- read.csv(here("data", "trial_6.csv"))
 
-##### modified t1 data to fit format of camtrapR ###########
-
-t1_mod <- t1_dat %>% 
-  # renaming file name 
+#join into 1 data frame 
+all_mod <- rbind(t1_dat, t2_dat, t3_dat, t4_dat, t5_dat, t6_dat) %>% 
+  #renaming file
   rename(FileName = File) %>% 
     #renaming date time 
     rename(DateTimeOriginal = DateTime) %>% 
-      # formatting the date time 
+      # formatting the date time using lubridate to be recognized as a date time and not character
        mutate(DateTimeOriginal = ymd_hms(DateTimeOriginal)) %>% 
-        # adding 24 hrs to station 6 b/c it was behind 1 day in the field 
+        # adding 24 hrs to station 6 and 6B it was behind 1 day in the field b/c field cameras were off. Only necessary to do this step if camera times were set incorrect
         mutate(DateTimeOriginal = case_when(
-          Station == "Station 6" ~ DateTimeOriginal + hours(24), TRUE ~ DateTimeOriginal)) %>%
+          Station == c("Station 6") ~ DateTimeOriginal + hours(24), TRUE ~ DateTimeOriginal)) %>%
+         mutate(DateTimeOriginal = case_when(
+          Station == c("Station 6B") ~ DateTimeOriginal + hours(24), TRUE ~ DateTimeOriginal)) %>%
            #creating a column called "Date" from DateTimeOriginal using lubridate package
            mutate(Date = as_date(DateTimeOriginal)) %>% 
             #creating a column called "Time" from DateTimeOriginal using lubrdiate package 
             mutate(Time = format(DateTimeOriginal, format = "%H:%M:%S")) %>% 
-              #selecting a specific columns 
+              #selecting  specific columns of interest
               select(c("Station", "treatment", "Species", "Number", "DateTimeOriginal", "Date", "Time", "FileName")) %>% 
-  filter(Station != "" )
+  #cleaning the station name of spaces
+   mutate(Station = str_trim(Station)) %>% 
+  filter(Station != "")
+  
 
-
-
-
-
-
-
-
-
-
-################## Read in trial 2 csv file  ####################### 
-t2_dat <- read.csv(here("data", "trial_2.csv"))
-
-##### modified t2 data to fit format of camtrapR ###########
-
-t2_mod <- t2_dat %>% 
-  # renaming file name 
-  rename(FileName = File) %>% 
-  #renaming date time 
-  rename(DateTimeOriginal = DateTime) %>% 
-   # adding 24 hrs to station 6 b/c it was behind 1 day in the field 
-  mutate(DateTimeOriginal = ymd_hms(DateTimeOriginal)) %>% 
-        # adding 24 hrs to station 6 b/c it was behind 1 day in the field 
-        mutate(DateTimeOriginal = case_when(
-          Station == "Station 6B" ~ DateTimeOriginal + hours(24), TRUE ~ DateTimeOriginal)) %>%
-  #creating a column called "Date" from DateTimeOriginal using lubridate package
-  mutate(Date = as_date(DateTimeOriginal)) %>% 
-    #creating a column called "Time" from DateTimeOriginal using lubrdiate package 
-  mutate(Time = format(DateTimeOriginal, format = "%H:%M:%S")) %>% 
-  #selecting a specific columns 
-  select(c("Station", "treatment", "Species","Number", "DateTimeOriginal", "Date", "Time", "FileName")) 
-    
-
-
-
-
-
-################## Read in trial 3 csv file  ####################### 
-t3_dat <- read.csv(here("data", "trial_3.csv"))
-
-##### modified t3 data to fit format of camtrapR ###########
-
-t3_mod <- t3_dat %>% 
-  #renaming date time 
-  rename(DateTimeOriginal = DateTime) %>% 
-  # renaming file name 
-  rename(FileName = File) %>% 
-  #creating a column called "Date" from DateTimeOriginal using lubridate package
-  mutate(Date = as_date(ymd_hms(DateTimeOriginal))) %>% 
-    #creating a column called "Time" from DateTimeOriginal using lubrdiate package 
-  mutate(Time = format(ymd_hms(DateTimeOriginal), format = "%H:%M:%S")) %>% 
-  #selecting a specific columns 
-  select(c("Station", "treatment", "Species", "Number", "DateTimeOriginal", "Date", "Time", "FileName")) 
-     
-
-
-
-
-
-
-
-
-
-
-
-################## Read in trial 4 csv file  ####################### 
-t4_dat <- read.csv(here("data", "trial_4.csv"))
-
-##### modified t3 data to fit format of camtrapR ###########
-
-t4_mod <- t4_dat %>% 
-  #renaming date time 
-  rename(DateTimeOriginal = DateTime) %>% 
-  # renaming file name 
-  rename(FileName = File) %>% 
-  #creating a column called "Date" from DateTimeOriginal using lubridate package
-  mutate(Date = as_date(ymd_hms(DateTimeOriginal))) %>% 
-    #creating a column called "Time" from DateTimeOriginal using lubrdiate package 
-  mutate(Time = format(ymd_hms(DateTimeOriginal), format = "%H:%M:%S")) %>% 
-  #selecting a specific columns 
-  select(c("Station", "treatment", "Species", "Number", "DateTimeOriginal", "Date", "Time", "FileName")) 
-
-
-```
-
-
-
-### Merging all trial data frames 
-```{r}
-
-# all species observation data
-all_mod  <- rbind(t1_mod, t2_mod, t3_mod, t4_mod) %>% 
-  # getting rid of an error
-  filter(Station != "") %>% 
-  # creating a column saying whether its a rodent or not 
-  mutate(rodent = ifelse(Species %in% c("Woodrat", "Black rat", "Mouse"), TRUE, FALSE))  
- 
-
-
-# just rodent data 
+### new df with just the rodents #####
 rod_mod <- all_mod %>% 
-  filter(rodent == "TRUE")
-
-```
-
-
-
-### Read in the station data 
-
-```{r}
-################ station data ################
-
-stat_dat_raw <- read.csv(here("data", "station_data.csv"))
-
-#modified data and fixing times using lubridate so that dates are read as dates and not characters 
-stat_dat_mod <- stat_dat_raw %>% 
-  mutate(Treatment = str_trim(Treatment)) %>% 
-  mutate(Date_Installed = mdy(Date_Installed)) %>% 
-  mutate(Date_Retrieved = mdy(Date_Retrieved)) %>% 
-  mutate(Problem1_from = mdy(Problem1_from)) %>% 
-    mutate(Problem1_to = mdy(Problem1_to))
-
-#removing rows (if needed)
-stat_dat_mod <- stat_dat_mod[-c(49:72), ]  
-    
-  
-  
-  
-
-```
-
-### Camera Operability 
-```{r}
-#this step is necessary to put in a camera operation table telling camtrapR when the cameras were running and if there was any issues. Ex; if camera #12 was down for a couple days, you would insert it in stat_dat_mod and then cameraOperations would create a table saying it was down. Even though we didnt have any issues with our cameras, we still had to create a table for this cause its necessary in following steps
-camop_problem <- cameraOperation( CTtable = stat_dat_mod,
-                      stationCol = "Station",
-                      setupCol = "Date_Installed",
-                      retrievalCol = "Date_Retrieved",
-                      hasProblems = TRUE,
-                      dateFormat = "ymd"
-                      
-)
-
-
-
-
-
+  filter(Species %in% c("Woodrat", "Black rat", "Mouse"))
 ```
 
 
 
 
-
-
-### Separate Detections by Timeperiods 
+### Independent Records: Separate Detections by Timeperiods using camtrpR
 
 ```{r}
-# creating a data frame that shows observations based off images taken > 3 minutes apart  
-# some images were taken at the same time durin the bursts (ex: two photos of the 3 photo busrst were taken on the same second) which causes the assessTemporalIndependence function to make duplicates of records. so we need to get rid of them in the next step after creating the ind_recs data frame 
+# creating a data frame that shows observations based off images taken > 10 minutes apart  
+# some images were taken at the same time during the bursts (ex: 2 out of the 3 photo busrst were taken on the same second) which causes the assessTemporalIndependence function to make duplicates of records. so we need to get rid of them in the next step after creating the ind_recs data frame 
 ind_recs <- camtrapR:::assessTemporalIndependence(intable = rod_mod, 
                                                        deltaTimeComparedTo = "lastIndependentRecord",
                                                        columnOfInterest = "Species",
                                                        cameraCol = "Station",
                                                        camerasIndependent = TRUE,
                                                        stationCol = "Station",
-                                                       minDeltaTime = 3,
+                                                       minDeltaTime = 10,
+                                                  
                                                   
                                                    
 )
-```
 
 
-```{r}
-
-#removing independent records duplicates 
-ind_recs_mod <- ind_recs[!duplicated(ind_recs[c("Species", "DateTimeOriginal", "Station", "delta.time.secs")]), ]
+#removing independent records duplicates to prevent double counting  
+ind_recs <- ind_recs[!duplicated(ind_recs[c("Species", "DateTimeOriginal", "Station", "delta.time.secs")]), ]
 
 
 ```
 
 
-### Reports
+############## Station Data #########################
+
 ```{r}
-#creating summary reports 
-report <- surveyReport(recordTable = ind_recs_mod,
-                       CTtable = stat_dat_mod,
+### reading in station data 
+stat_dat_multi <- read.csv(here("data", "master_sheet.csv")) %>% 
+  # using lubridate to format dates
+  mutate(Date_Installed = mdy(Date_Installed)) %>% 
+  mutate(Date_Retrieved = mdy(Date_Retrieved)) %>% 
+  #columns with camera operation problems. required for the next step even if your cameras functioned fine the whole time. This basically just tells camtrapR when a cameras wasnt working
+  mutate(Problem1_from = mdy(Problem1_from)) %>% 
+    mutate(Problem1_to = mdy(Problem1_to))
+
+
+
+#this step is necessary to put in a camera operation table telling camtrapR when the cameras were running and if there was any issues. Ex; if camera #12 was down for a couple days, you would insert it in stat_dat_multi and then cameraOperations would create a table saying it was down.I entered this data for downed cameras in the column Problem1_from and Problem1_to. Even if you dont have any issues with your cameras, we still have to create a table for this cause its necessary in following steps. if there is not problems in the problems columns, then mark hasProblems = FALSE
+camop_problem <- cameraOperation( CTtable = stat_dat_multi,
+                      stationCol = "Station",
+                      setupCol = "Date_Installed",
+                      retrievalCol = "Date_Retrieved",
+                      hasProblems = TRUE,
+                      dateFormat = "ymd",
+                      #we sterviced and installed cameras at 8am 
+                      occasionStartTime = 8
+                      
+)
+
+
+
+  #renaming stations from ind_recs_mod to get rid of the letter. Originally, we labeled every station as station 1, 1B, and 1C; 2, 2B, 2C; etc. to show the different treatments that each station would have gotten. For example, station 12 would be control, 12B would be PB, and 12C would be PB + fox. However, we ended up switching this method after having labeled them all as such, and now we want them to be just by their number (1-12) with no letter. This is because they should not be separate stations with letters as they are all technically the same station just with different treatments throughout the study, as represented by the letters (A, B, C). We annotated what the treatment type is in the treatment matrix later on in this multi-species occupancy analysis so it is ok to get rid of the letters here
+  
+ind_recs_multi <- ind_recs %>% 
+  mutate(Station = gsub("(\\d+)[a-zA-Z].*", "\\1", Station))
+```
+
+
+
+
+
+## Summary Reports
+```{r}
+
+#creating summary reports. tables that just show broad info about species detected and stations 
+report <- surveyReport(recordTable = ind_recs_multi,
+                       CTtable = stat_dat_multi,
                        CTDateFormat = "ymd",
                        speciesCol = "Species",
                        setupCol = "Date_Installed",
@@ -291,71 +178,81 @@ report3 <- report$events_by_station
 
 
 
-### Wood Rat Detection History 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+### Detection History tables for each rodent species 
 ```{r}
-#here we create a detection history for each species of interest. Says if a species was observed or not during each day 
-woodrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
+## here we create detection history tables for each species. It can be a bit fickle doing this, so be patient if you get an error. Essentially this is creating data frames that show on what days for each station a rodent was observed (0,1) or NA if the camera was either 1) not set up during that dau, or 2) malfunctioned as indicated by the camera operation table.
+
+
+
+
+############ woodrat ###################
+woodrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_multi,
+                        #camera operability table
                        camOp = camop_problem,
+                       #what the species is 
                        species = "Woodrat",
+                       #which column contains station
                        stationCol = "Station",
+                       #which column contains species
                        speciesCol = "Species",
+                       #dates time column and format. Format can be tricky. Refer to the 1st vignette                         included here in the project "vignettes" folder if you have a different format
                        recordDateTimeCol = "DateTimeOriginal",
                        recordDateTimeFormat = "%Y-%m-%d %H:%M:%S",
+                       # represented by 1 day or 24 hours
                        occasionLength = 1,
-                       occasionStartTime = 0, 
+                       # this tells us that the trapping day goes from 8am on one day til 7:59am the                           next day. 
+                       occasionStartTime = 8, 
                        day1 = "station",
-                       includeEffort = TRUE,
+                       includeEffort = FALSE,
                        scaleEffort = FALSE,
                        timeZone = "America/Los_Angeles"
                        # writecsv = TRUE,
                        # outDir = "/Users/rayhunter/Desktop/TNC/tnc_internship-/data"
                        )) %>% 
-  #adding the station names
-  rownames_to_column("Station" ) %>% 
-  mutate(detection_history.o1 = ifelse(effort.o1 == 0, NA, detection_history.o1)) %>% 
- mutate(detection_history.o2 = ifelse(effort.o2 == 0, NA, detection_history.o2)) %>% 
-  mutate(detection_history.o3 = ifelse(effort.o3 == 0, NA, detection_history.o3)) %>% 
-  mutate(detection_history.o4 = ifelse(effort.o4 == 0, NA, detection_history.o4)) %>% 
-  mutate(detection_history.o5 = ifelse(effort.o5 == 0, NA, detection_history.o5)) %>% 
-  mutate(detection_history.o6 = ifelse(effort.o6 == 0, NA, detection_history.o6)) %>% 
-  mutate(detection_history.o7 = ifelse(effort.o7 == 0, NA, detection_history.o7)) %>% 
-  mutate(detection_history.o8 = ifelse(effort.o8 == 0, NA, detection_history.o8)) %>% 
-  mutate(detection_history.o9 = ifelse(effort.o9 == 0, NA, detection_history.o9)) %>% 
-  mutate(detection_history.o10 = ifelse(effort.o10 == 0, NA, detection_history.o10)) %>% 
-  mutate(detection_history.o11 = ifelse(effort.o11 == 0, NA, detection_history.o11)) %>% 
-  mutate(detection_history.o12 = ifelse(effort.o12 == 0, NA, detection_history.o12)) 
+                      #adding the station names from default column names
+                      rownames_to_column("Station" ) 
 
 
-#combined df in tidy format
-wr_hist_mod <- woodrat_hist  %>%
-  #selecting just the detection history 
-  select(Station:detection_history.o12) %>%
-  #tidy format 
- pivot_longer(cols = c(detection_history.o1:detection_history.o12),
-               names_to = "day",
-               values_to = "detection") %>%
-  #combining both DF's in tiday format
-  merge( stat_dat_mod[, c("Station", "Treatment")], by = "Station", all.x = TRUE) %>%
-   #creating a species name
-  mutate(Species = "Woodrat")
-  
+# for some reason, camtrapR keeps adding an extra trapping day at the end of the matrix. It thinks that we trapped on 8/15/2023 but we took the cameras down that day. All records up until 8am on 8/15/2023 are included with the 8/14/2023 data after 8am, so there should be no data fro 8/15/23, but the detection history keeps making an extra column anyway. So I am removing that manually here. This may or may not be necessary for you 
 
+# I am also making the row 13:24 of column 22 NA's because the same thing happened as previously described for our cameras 21-32 which are represented in rows 13-24. It seemse confusing, but this is the same step I did previously described, but for cameras 21-34 instead of 1-12.
 
-#creating a summary df
-wr_hist_sum <- wr_hist_mod %>% 
-  #grouping byt station and treatment for summary 
-  group_by(Station, Treatment, Species) %>%
-  #taking the means 
-  summarise(detection_prob = mean(detection, na.rm = TRUE))
-```
+# the reason that the extra days aren't all in 1 column is b/c cameras 1-12 were out for 25 days and cameras 21-32 were out for 21 days. Hence we have to remove false data from day (or column) 27 and 22
 
 
 
+woodrat_hist <- woodrat_hist[, -c(1,27)] #removing column 1 (station names) and 27 which was the extra day for cameras 1-12 that was included which shouldnt be there
+woodrat_hist[13:24, 22] <- NA #removing extra day for cameras 21-32
 
-### Black Rat Detection History 
-```{r}
-#here we create a detection history for each species of interest. Says if a species was observed or not during each day 
-blackrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
+
+
+                                   ########## black rat #############
+blackrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_multi,
                        camOp = camop_problem,
                        species = "Black rat",
                        stationCol = "Station",
@@ -363,68 +260,31 @@ blackrat_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
                        recordDateTimeCol = "DateTimeOriginal",
                        recordDateTimeFormat = "%Y-%m-%d %H:%M:%S",
                        occasionLength = 1,
-                       occasionStartTime = 0, 
+                       occasionStartTime = 8, 
                        day1 = "station",
-                       includeEffort = TRUE,
+                       includeEffort = FALSE,
                        scaleEffort = FALSE,
                        timeZone = "America/Los_Angeles"
                        # writecsv = TRUE,
                        # outDir = "/Users/rayhunter/Desktop/TNC/tnc_internship-/data"
                        )) %>% 
   #adding the station names
-  rownames_to_column("Station" ) %>% 
-  #making detection history NA values when effort = 0
-    mutate(detection_history.o1 = ifelse(effort.o1 == 0, NA, detection_history.o1)) %>% 
- mutate(detection_history.o2 = ifelse(effort.o2 == 0, NA, detection_history.o2)) %>% 
-  mutate(detection_history.o3 = ifelse(effort.o3 == 0, NA, detection_history.o3)) %>% 
-  mutate(detection_history.o4 = ifelse(effort.o4 == 0, NA, detection_history.o4)) %>% 
-  mutate(detection_history.o5 = ifelse(effort.o5 == 0, NA, detection_history.o5)) %>% 
-  mutate(detection_history.o6 = ifelse(effort.o6 == 0, NA, detection_history.o6)) %>% 
-  mutate(detection_history.o7 = ifelse(effort.o7 == 0, NA, detection_history.o7)) %>% 
-  mutate(detection_history.o8 = ifelse(effort.o8 == 0, NA, detection_history.o8)) %>% 
-  mutate(detection_history.o9 = ifelse(effort.o9 == 0, NA, detection_history.o9)) %>% 
-  mutate(detection_history.o10 = ifelse(effort.o10 == 0, NA, detection_history.o10)) %>% 
-  mutate(detection_history.o11 = ifelse(effort.o11 == 0, NA, detection_history.o11)) %>% 
-  mutate(detection_history.o12 = ifelse(effort.o12 == 0, NA, detection_history.o12)) 
- 
+  rownames_to_column("Station" ) 
+
+
+
+blackrat_hist <- blackrat_hist[, -c(1,27)] 
+blackrat_hist[13:24, 22] <- NA 
 
 
 
 
 
 
-#combined df in tidy format
-br_hist_mod <- blackrat_hist  %>%
-  #selecting just the detection history 
-  select(Station:detection_history.o12) %>%
-  #tidy format 
- pivot_longer(cols = c(detection_history.o1:detection_history.o12),
-               names_to = "day",
-               values_to = "detection") %>%
-  #combining both DF's in tiday format
-  merge( stat_dat_mod[, c("Station", "Treatment")], by = "Station", all.x = TRUE) %>%
-   #creating a species name
-  mutate(Species = "Black rat")
+                               ############ mouse ################
 
 
-
-
-#creating a summary df
-br_hist_sum <- br_hist_mod %>% 
-  #grouping byt station and treatment for summary 
-  group_by(Station, Treatment, Species) %>%
-  #taking the means 
-  summarise(detection_prob = mean(detection, na.rm = TRUE))
-```
-
-
-
-
-### Mouse Detection History 
-
-```{r}
-#here we create a detection history for each species of interest. Says if a species was observed or not during each day 
-mouse_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
+mouse_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_multi,
                        camOp = camop_problem,
                        species = "Mouse",
                        stationCol = "Station",
@@ -432,354 +292,427 @@ mouse_hist <- as.data.frame(detectionHistory(recordTable = ind_recs_mod,
                        recordDateTimeCol = "DateTimeOriginal",
                        recordDateTimeFormat = "%Y-%m-%d %H:%M:%S",
                        occasionLength = 1,
-                       occasionStartTime = 0, 
+                       occasionStartTime = 8, 
                        day1 = "station",
-                       includeEffort = TRUE,
+                       includeEffort = FALSE,
                        scaleEffort = FALSE,
                        timeZone = "America/Los_Angeles"
                        # writecsv = TRUE,
                        # outDir = "/Users/rayhunter/Desktop/TNC/tnc_internship-/data"
                        )) %>% 
   #adding the station names
-  rownames_to_column("Station" ) %>% 
-    #making detection history NA values when effort = 0
-    mutate(detection_history.o1 = ifelse(effort.o1 == 0, NA, detection_history.o1)) %>% 
- mutate(detection_history.o2 = ifelse(effort.o2 == 0, NA, detection_history.o2)) %>% 
-  mutate(detection_history.o3 = ifelse(effort.o3 == 0, NA, detection_history.o3)) %>% 
-  mutate(detection_history.o4 = ifelse(effort.o4 == 0, NA, detection_history.o4)) %>% 
-  mutate(detection_history.o5 = ifelse(effort.o5 == 0, NA, detection_history.o5)) %>% 
-  mutate(detection_history.o6 = ifelse(effort.o6 == 0, NA, detection_history.o6)) %>% 
-  mutate(detection_history.o7 = ifelse(effort.o7 == 0, NA, detection_history.o7)) %>% 
-  mutate(detection_history.o8 = ifelse(effort.o8 == 0, NA, detection_history.o8)) %>% 
-  mutate(detection_history.o9 = ifelse(effort.o9 == 0, NA, detection_history.o9)) %>% 
-  mutate(detection_history.o10 = ifelse(effort.o10 == 0, NA, detection_history.o10)) %>% 
-  mutate(detection_history.o11 = ifelse(effort.o11 == 0, NA, detection_history.o11)) %>% 
-  mutate(detection_history.o12 = ifelse(effort.o12 == 0, NA, detection_history.o12)) 
+  rownames_to_column("Station" ) 
+
+mouse_hist <- mouse_hist[, -c(1,27)]
+mouse_hist[13:24, 22] <- NA
+
+
+
+```
+
+
+
+
+
+#### Preparing occupancy model 
+```{r}
+
+
+#### creating a combined list of detection history matrices for each species. detection histories MUST all be the same exact dimensions to work: there should be no station column, only observations. need to be matrices and NOT data frames   
+y_list <-list(Woodrat = as.matrix(woodrat_hist),
+              Blackrat = as.matrix(blackrat_hist),
+              Mouse = as.matrix(mouse_hist)
+              )
+
+# creating a df of detection covariates (treatment). Need to get rid of rows with all NAs and station column 
  
-
-#combined df in tidy format
-mou_hist_mod <- mouse_hist  %>%
-  #selecting just the detection history 
-  select(Station:detection_history.o12) %>%
-  #tidy format 
- pivot_longer(cols = c(detection_history.o1:detection_history.o12),
-               names_to = "day",
-               values_to = "detection") %>%
-  #combining both DF's in tiday format
-  merge( stat_dat_mod[, c("Station", "Treatment")], by = "Station", all.x = TRUE) %>%
-   #creating a species name
-  mutate(Species = "Mouse")
-
-
-#creating a summary df
-mou_hist_sum <- mou_hist_mod %>% 
-  #grouping byt station and treatment for summary 
-  group_by(Station, Treatment, Species ) %>%
-  #taking the means 
-  summarise(detection_prob = mean(detection, na.rm = TRUE))
-
-```
+treat_mx <- read.csv("data/treatment_detection_matrix_unmarked.csv")
+#removing station names
+det_covs <- data.frame(treat_mx[,-1])
+#assigning NA values to the treatments that were applied on days in which the cameras were not working
+det_covs[c(17,21), c(1:7)] <- NA 
 
 
 
+#creating a list of detection covariates. Even though we only have one item, it still needs to be formatted as a list. If there were other detection covariates such as temperature or time of day we would also add those on here. Detection covariates are everything related to whether or not we might see a rodent given that it is present
 
 
-### combined 
-```{r}
+det_list <- list(Treatment = as.matrix(det_covs))
 
+#list of occupancy covariates: Here I am just drawing in all the habitat covariates such as % canopy, distance to water, etc. that are included in the occupancy (not detection) portion of the model. In other words, what variables may be determining whether or not a rodent occupies an area. This should essentially include your environmental data. 
 
-
-############ combining and summarizing each data frame into one  
-
-
-rodent_sum <- rbind(wr_hist_sum, br_hist_sum, mou_hist_sum)
-
-```
+occ_covs <- stat_dat_multi[, 5:11] 
 
 
 
-
-##################### Occupancy modeling ####################
-
-```{r}
-#assigning a list of covariates 
-covs <- as.data.frame(stat_dat_mod$Treatment)
-names(covs) <- "Treatment"
-
-UFO_wr <- unmarkedFrameOccu(y = woodrat_hist[,2:13], siteCovs = covs)
-summary(UFO_wr)
+# putting it all together in an unmarked Frame Multi-Species. Even though we use a Multi=species model, we arent looking at interactions BETWEEN species. We are looking at each species individually, so essentially 3 single species occupancy models. However, the unmarkedFrameOccuMulti() function allows you to include all 3 of the species in 1 model and look at them independently instead of running 3 separate models.
 
 
-########## model 1: no variation across habitat ###############
-
-m1 <- occu(~1 ~1, data = UFO_wr)
-
-
-m1.psi <- backTransform(m1, type = "state")
-m1.psi
-
-m1.p <- backTransform(m1, type = "det")
-m1.p
+ufom_rods <- unmarkedFrameOccuMulti(y = y_list,
+                                   siteCovs = occ_covs,
+                                   obsCovs = det_list)
 
 
-m1CI.psi <- confint(m1.psi)
-m1CI.psi
+#scaling environmental covariate data. NOTE: this can only be done for numeric data (not character). This basically defines the range of the values for each variable in a more interpretable way for the model. 
+ufom_rods@siteCovs$Percent_Canopy_Cover <- scale(ufom_rods@siteCovs$Percent_Canopy_Cover)
+ufom_rods@siteCovs$Percent_Leaf_Litter <- scale(ufom_rods@siteCovs$Percent_Leaf_Litter)
+ufom_rods@siteCovs$Percent_Bare <- scale(ufom_rods@siteCovs$Percent_Bare)
+ufom_rods@siteCovs$Percent_Woody_Debris <- scale(ufom_rods@siteCovs$Percent_Woody_Debris)
+ufom_rods@siteCovs$Distance_to_Water_.m. <- scale(ufom_rods@siteCovs$Distance_to_Water_.m.)
+ufom_rods@siteCovs$Distance_to_Building_.m. <- scale(ufom_rods@siteCovs$Distance_to_Building_.m.)
 
 
-m1CI.p <- confint(m1.p)
-m1CI.p
-
-
-### model 2: occupancy varies across habitat  #######
-
-m2 <- occu(~1 ~Treatment, data = UFO_wr)
-m2
-
-
-#################predicting
-
-preds <- data.frame(Treatment = c("control", "PB","PB + fox"))
-
-
-#use the new data to make predicitons based on the model for occupancy
-fits.m2.psi <- predict(m2, type = "state", newdata = preds, appendData = TRUE) 
-fits.m2.psi$type <- "psi"
-fits.m2.psi
-
-#same but for detection
-fits.m2.p <- predict(m2, type = "det", newdata = preds, appendData = TRUE) 
-fits.m2.p$type <- "p"
-fits.m2.p
-
-#combine
-fits.m2 <- rbind(fits.m2.psi, fits.m2.p)
-fits.m2
-
-
-
-
-### model 3: occupancy varies across habitat  #######
-
-m3 <- occu(~Treatment ~1, data = UFO_wr)
-m3
-
-#use the new data to make predicitons based on the model for occupancy
-fits.m3.psi <- predict(m3, type = "state", newdata = preds, appendData = TRUE) 
-fits.m3.psi$type <- "psi"
-fits.m3.psi
-
-#same but for detection
-fits.m3.p <- predict(m3, type = "det", newdata = preds, appendData = TRUE) 
-fits.m3.p$type <- "p"
-fits.m3.p
-
-#combine
-fits.m3 <- rbind(fits.m3.psi, fits.m3.p)
-fits.m3
-
-
-
-#### AIC values #######
-
-AIC <- data.frame(Model = c("m1", "m2", "m3"),
-                  AIC = c(m1@AIC, m2@AIC, m3@AIC))
-AIC
 
 
 
 ```
 
 
-############## Occ Modeling #2 ################
+### Making Multi-Species Models: changes in log-odds 
 ```{r}
-#creating list of covariates 
-covs2 <- stat_dat_mod[ ,6:12]
-
-dets_wr <- woodrat_hist[,2:13]
-
-UFO2_wr <- unmarkedFrameOccu(y = dets_wr, siteCovs = covs2)
-summary(UFO2_wr)
 
 
+### here we are creating the models. It can be a bit confusing so stay with me. I recommend watching this entire tutorial as it explains what is going on here:
 
- #### standardizing the covariates
-UFO2_wr@siteCovs$Percent_Canopy_Cover <- scale(UFO2_wr@siteCovs$Percent_Canopy_Cover)
-UFO2_wr@siteCovs$Percent_Leaf_Litter <- scale(UFO2_wr@siteCovs$Percent_Leaf_Litter)
-UFO2_wr@siteCovs$Percent_Bare <- scale(UFO2_wr@siteCovs$Percent_Bare)
-UFO2_wr@siteCovs$Percent_Woody_Debris <- scale(UFO2_wr@siteCovs$Percent_Woody_Debris)
-UFO2_wr@siteCovs$Distance_to_Water_.m. <- scale(UFO2_wr@siteCovs$Distance_to_Water_.m.)
-UFO2_wr@siteCovs$Distance_to_Building_.m. <- scale(UFO2_wr@siteCovs$Distance_to_Building_.m.)
+##.   https://www.youtube.com/watch?v=tj_OCO77_sc
+
+
+#Essentially, we are fitting the data to each of the assigned predictor variables. We take the variables of interest and assign them to each species. For example model 1 looks like this:
+
+# detformulas = c('~1', '~1', '~1'),
+# stateformulas = c('~1', '~1', '~1'),
+
+# detformula is where you enter the detection variables and stateformula is where you enter occupancy variables. In this case, we put 1 for all of them. So no predictor variables were applied
+
+#in other models you will see something like 
+# detformulas = c('~Treatment', '~Treamtent', '~Treatment'),
+# stateformulas = c('~Distance to Building', '~Distance to Building', '~Distance to Water'),
+
+# the order of the values separated by the comas is the same as the order of the species entered in the y_list portion the occuFrameMulti. For example, I included woodrat first, black rat second, and mouse third in the y_list. This means that the detformula and stateformula follow the same order. ~1 for woodrat, ~1 black rat, and ~1 mouse. Another example:  model 7 (see below) would be such for the state formula: 
+
+# ~ Distance_to_Water_.m. ( for woodrat)', '~  Distance_to_Building_.m. (for black rat)', '~ 1 (for mouse)'
+
+# Order matters. 
+
+
+# so lets get into it!
+
+
+
+###################### model 1 ###########################
+
+
+
+
+### intercept only model but assuming independence of species. This model basically implies that nothing is responsble for detection and occupancy 
+
+fit_1m <- occuMulti(detformulas = c('~1', '~1', '~1'),
+                    stateformulas = c('~1', '~1', '~1'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+#run the summary below to see what the model output and significance is
+# # summary(fit_1m)
+
+
+
+
+
+###################### model 2 ###########################
+
+### intercept only model but assuming dependence of species
+# allowing second order natural parameters maxOrder = 2. This model looks at interactions BETWEEN speceis as indicated by the secod row of state formulas. We arent looking at this in this study, but I just wrote it out here to show it
+
+fit_2m <- occuMulti(detformulas = c('~1', '~1', '~1'),
+                    stateformulas = c('~1', '~1', '~1',
+                                      '~1', '~1', '~1'),
+                    maxOrder = 2,
+                    data = ufom_rods)
+
+# # summary(fit_2m)
+
+
+###################### model 3 ###########################
+## more complex model with treatment as detection variable and other variables for each species
+fit_3m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~Habitat + Distance_to_Water_.m. + Distance_to_Building_.m. + Percent_Canopy_Cover + Percent_Woody_Debris', '~Habitat + Distance_to_Water_.m. + Distance_to_Building_.m. + Percent_Canopy_Cover + Percent_Woody_Debris', '~Habitat + Distance_to_Water_.m. + Distance_to_Building_.m. + Percent_Canopy_Cover + Percent_Woody_Debris'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+#
+# # summary(fit_3m)
+
+
+###################### model 4 ###########################
+
+fit_4m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~Distance_to_Water_.m. + Distance_to_Building_.m. + Percent_Canopy_Cover', '~Distance_to_Water_.m. + Distance_to_Building_.m. + Percent_Canopy_Cover', '~Distance_to_Water_.m. + Distance_to_Building_.m. + Percent_Canopy_Cover'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+#
+# # summary(fit_4m)
+
+
+###################### model 5 ###########################
+
+fit_5m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~Distance_to_Building_.m.', '~  Distance_to_Building_.m. ', '~ Distance_to_Water_.m.'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+
+
+# summary(fit_5m)
+
+###################### model 6 ###########################
+
+
+fit_6m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~ Percent_Woody_Debris ', '~  Distance_to_Building_.m. + Percent_Canopy_Cover ', '~ Percent_Woody_Debris'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+
+
+# summary(fit_6m)
+
+
+###################### model 7 ###########################
+
+fit_7m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~ Distance_to_Water_.m. ', '~  Distance_to_Building_.m. ', '~ 1'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+
+
+summary(fit_7m)
+
+
+###################### model 8 ###########################
+
+
+fit_8m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~ 1', '~  Habitat  ', '~ 1'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+
+
+# summary(fit_8m)
+
+###################### model 9 ###########################
+
+fit_9m <- occuMulti(detformulas = c('~Treatment', '~Treatment', '~Treatment'),
+                    stateformulas = c('~1', '~  1', '~ 1'),
+                    maxOrder = 1,
+                    data = ufom_rods)
+
+
+# summary(fit_9m)
+
+
+
 ```
 
 
+
+
+### Model Selection 
 ```{r}
-
-################ Model 1: no vairation in detection or habitat ################
-fm1<- occu(formula = ~ 1 
-                     ~ 1,
-           data = UFO2_wr)
-
-# backTransform(fm1, type = "state")
-# backTransform(fm1, type = "det")
-
-
-################ Model 2: Datection ~ Treantment, Occupancy ~ dist. to water and building  ################
-
-fm2 <- occu(formula = ~ Treatment 
-                      ~  Distance_to_Water_.m. + Distance_to_Building_.m.,
-            data = UFO2_wr)
+#looking at AIC values for all models
+AIC(fit_1m, fit_2m, fit_3m, fit_4m, fit_5m, fit_6m, fit_7m, fit_8m, fit_9m)
+#creating a vector of AIC values for the top 3 models 
+aic_values <- AIC(fit_6m, fit_7m, fit_5m)
+# creating a vector of log liklihood for each of the 3 models 
+logLiklihood <- c(logLik(fit_6m), logLik(fit_7m), logLik(fit_5m))
+# creating a vector of the number of coefficients or parameters for each of the 3 models 
+params <- c(length(coef(fit_6m)), length(coef(fit_7m)), length(coef(fit_5m)))
 
 
-# fm2
-
-
-
-
-################ Model 3: Datection ~ Treantment, Occupancy ~ dist. to water and building  ################
-
-fm3 <- occu(formula = ~ Treatment  + Percent_Canopy_Cover
-                      ~  Distance_to_Water_.m. + Distance_to_Building_.m.,
-            data = UFO2_wr)
-
-# fm3
+# adding this all togther to make a model selection data frame 
+aic_tab <- data.frame(
+  #naming each model 
+  Model = c("Model 6", "Model 7", "Model 5"),
+  #writing out the definition of each model where p is detection probability and psi is occupancy
+ Model_definition = c("p ~ Treatment, Treatment, Treatment; psi ~ Woody_Debris,  Distance to Building + Canopy_Cover, WoodyDebris", "p ~ Treatment, Treatment, Treatment; psi~ Distance_to_Water, Distance_to_Building, 1", "p ~ Treatment, Treatment, Treatment; psi ~ Distance_to_Building, Distance_to_Building, Distance_to_Water"),
+ #parameters for each model
+Parameters = params,
+#log liklihood 
+Log_liklihood = logLiklihood,
+#aic values
+aic_values,
+# calculating delta AIC 
+Delta_AIC = aic_values$AIC - min(aic_values$AIC),
+# calculating AIC weights
+AIC_weights = Weights(aic_values))
 
 
 
+#after inspecting, you can see model 6 is the best (lowest AIC) 
 
-################ Model 4:   ################
+#writing a csv file for export
+write.csv(aic_tab, file = "aic_table.csv", row.names = FALSE)
+```
 
-fm4 <- occu(formula = ~ Treatment  + Percent_Woody_Debris + Distance_to_Building_.m.
-                      ~ Percent_Woody_Debris + Distance_to_Water_.m. + Distance_to_Building_.m.,
-            data = UFO2_wr)
 
-fm4
+### Effect Size
+```{r}
+#df with sumamry results from best model 
+m6_results <- summary(fit_6m)
+
+## making a df that shows the chosen model outputs and effect size 
+det_res_m6 <- as.data.frame(m6_results$det) %>% 
+  #making treat
+rownames_to_column("Treatment" ) %>% 
+  mutate(Species = rep(c("Woodrat", "Black rat", "Mouse"), 
+                       each = 4)) %>% 
+  mutate(Treatment = rep(c("Intercept", "Control", "PB", "PB + Fox"), length.out = 12)) %>% 
+  # we dont want to see effect size of intercept of control 
+  filter(Treatment != c("Intercept", "Control")) 
+  
+  
+
+
+
+
+### effect size figure 
+eff_plot <- ggplot(det_res_m6, aes(x = Species, y = Estimate,  color = Treatment)) +
+  geom_point(size = 3, position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = Estimate - SE, ymax = Estimate + SE), width = 0.2,  position = position_dodge(width = 0.4)) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "black") + 
+  labs(
+       x = "Species",
+       y = "Lure Effect Size") +
+   # ylim(-1.5, 1.5) + 
+  theme_minimal() +
+  scale_color_manual(values = c("PB" = "#1f77b4", "PB + Fox" = "#2ca02c")) +
+  scale_y_continuous(limits = c(-.5, 1.25), expand = c(0, 0)) +  # Start y-axis at 0 and limit to 0-1
+  theme(plot.title = element_text(size = 16, margin = margin(0,0,30,0)),
+        axis.title = element_text(size = 13),
+        axis.title.x = element_text(margin = margin(t = 10)),  # Increase x-axis title margin
+        axis.title.y = element_text(margin = margin(r = 10)),  # Increase y-axis title margin
+        axis.text.x = element_text(margin = margin(t = 5)),    # Increase x-axis tick label margin
+        axis.text.y = element_text(margin = margin(r = 5)),   # Increase y-axis tick label margin)
+        axis.line = element_line(color = "black", size = .5),  # Add black axis line
+        axis.ticks = element_line(color = "black", size = .5))
+
+eff_plot
+
+ggsave("eff_plot.jpeg", plot = eff_plot, width = 6, height = 4, dpi = 300)
+
 ```
 
 
 
-### fitting 
+###### Using models to predict 
 ```{r}
-fit <- fitList('psi(.)p(.)' = fm1,
-               'psi(Distance_to_Water_.m. + Distance_to_Building_.m.)p(Treatment)' = fm2,
-               'psi(Distance_to_Water_.m. + Distance_to_Building_.m.)p(Treatment + Percent_Canopy_Cover)' = fm3,
-               'psi(Percent_Woody_Debris + Distance_to_Water_.m. + Distance_to_Building_.m.)p(Treatment  +
-                Percent_Woody_Debris + Distance_to_Building_.m.)' = fm4
-               )
-
-modSel(fit)
-```
-#### dredge it 
-```{r}
-# full <- occu(formula = ~ Treatment  + Percent_Canopy_Cover + Distance_to_Water_.m. + Distance_to_Building_.m. +
-#                           Percent_Leaf_Litter + Percent_Woody_Debris
-#                        ~ Percent_Canopy_Cover + Distance_to_Water_.m. + Distance_to_Building_.m. +
-#                           Percent_Leaf_Litter + Percent_Woody_Debris,
-#              data = UFO2_wr)
-# 
-# dredge_list <- MuMIn::dredge(full,
-#                     rank = "AIC")
-```
-
-
-
-
-
-
-
-### ANOVA
-```{r}
-wr_aov <- aov(detection_prob ~ Treatment, data = wr_hist_sum)
-summary(wr_aov)
-
-TukeyHSD(wr_aov)
-```
-```{r}
-ggplot(wr_aov, aes(Treatment, detection_prob)) +
-  geom_boxplot()
-
-
-ggline(wr_aov, x = "Treatment", y="detection_prob", main="Mean and 95% CI for three speceis for penguins", 
-       add=c("mean_ci"), color="dark gray", 
-       ylab="Body Mass (g)", xlab="Species", point.color="black")
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-### map of species detections 
-```{r}
-#make a map of species detections
-#change "speciestoShow" to the species of interest
-#you can add a polgyon of your area of interest, or export this to a Shapefile to explore in GIS
-spec_map <- detectionMaps(CTtable = stat_dat_mod,
-                           recordTable = ind_recs,
-                           Xcol = "Longitude",
-                           Ycol = "Latitude",
-                           stationCol = "Station",
-                           speciesCol = "Species",
-                           speciesToShow = "Rat",
-                           printLabels = FALSE,
-                           richnessPlot = FALSE,
-                           speciesPlots = TRUE,
-                           addLegend = TRUE
+## making a prediction model data frame that we can use to predict the detection probability with 
+# we hold the environemtal variables constant at their average as we are interested in the average treatment prediction 
+preds <- data.frame(
+  # Species = rep(c("Woodrat", "Black rat ", "Mouse"), length.out = 3),
+  Treatment = rep(c("control", "PB", "PB + fox"), length.out = 3),
+  Distance_to_Building_.m. = rep(mean(occ_covs$Distance_to_Building_.m.), 3),
+  Distance_to_Water_.m. = rep(mean(occ_covs$Distance_to_Water_.m.), 3)
 )
-```
-### daily activity rates 
-```{r}
-#look at daily activity rates
-activityDensity(recordTable = ind_recs, species = "Rabbit")
-activityRadial(recordTable = ind_recs,
-               species = "Rabbit",
-               allSpecies = FALSE,
-               speciesCol = "Species",
-               recordDateTimeCol = "DateTimeOriginal",
-               plotR = TRUE,
-               writePNG = FALSE,
-               lwd = 3,
-               rp.type = "p", # plot type = polygon
-               poly.col = gray(0.5, alpha = 0.5) # optional. remove for no fill
+
+
+
+#predicting detection probability across treatments 
+wr_preds <- predict(fit_7m, type = "det", species = "Woodrat", newdata = preds)
+br_preds <- predict(fit_7m, type = "det", species = "Blackrat", newdata = preds)
+m_preds <- predict(fit_7m, type = "det", species = "Mouse", newdata = preds)
+
+
+#adding up the preds together 
+comb_preds <- rbind(wr_preds, br_preds, m_preds)
+
+
+#data frame containing prediciton output so we can graph it 
+preds_fig <- data.frame(
+  Species = rep(c("Woodrat", "Black rat ", "Mouse"), each = 3),
+  Treatment = rep(c("Control", "PB", "PB + fox"), length.out = 3),
+  det_prob = comb_preds$Predicted,
+  low = comb_preds$lower,
+  high = comb_preds$upper
 )
+preds_fig
 ```
 
 
 
 
 
-### extracting data 
+
+### makign a plot for predicitons 
+```{r, fig.cap = "test"}
+my_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c")
 
 
+det_plot <- ggplot(preds_fig, aes(x = Treatment, y = det_prob, group = Species, color = Species)) +
+  geom_point(size = 3, position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = low, ymax = high), width = 0.2,  position = position_dodge(width = 0.4)) +
+  labs(
+       x = "Treatments",
+       y = "Daily Detection Probability") +
+   ylim(0, 1) + 
+  theme_minimal() +
+  scale_color_manual(values = my_colors) +
+  scale_y_continuous(limits = c(0, 1), expand = c(0, 0)) +  # Start y-axis at 0 and limit to 0-1
+  theme(plot.title = element_text(size = 16, margin = margin(0,0,30,0)),
+        axis.title = element_text(size = 13),
+        axis.title.x = element_text(margin = margin(t = 10)),  # Increase x-axis title margin
+        axis.title.y = element_text(margin = margin(r = 10)),  # Increase y-axis title margin
+        axis.text.x = element_text(margin = margin(t = 5)),    # Increase x-axis tick label margin
+        axis.text.y = element_text(margin = margin(r = 5)),   # Increase y-axis tick label margin)
+        axis.line = element_line(color = "black", size = .5),  # Add black axis line
+        axis.ticks = element_line(color = "black", size = .5))
+
+det_plot
 
 
+ggsave("det_plot.jpeg", plot = det_plot, width = 6, height = 4, dpi = 300)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-### sample data sets 
-
-```{r}
-data("camtraps")
-
-data("recordTableSample")
-
-data("timeShiftTable")
 ```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
